@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sub T - Active Bets</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+        }
+        .logo {
+            width: 160px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 30px;
+            margin: 5px 0 25px 0;
+        }
+        .bet-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 18px 22px;
+            width: 320px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+        .bet-desc {
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .bet-creator {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+        .bet-photo {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .bet-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            padding: 4px 0;
+        }
+        .label {
+            color: #94a3b8;
+        }
+        .value {
+            font-weight: bold;
+        }
+        .win { color: #4ade80; }
+        .lose { color: #f87171; }
+        .no-bets {
+            color: #64748b;
+            font-style: italic;
+            margin-top: 20px;
+        }
+        .back {
+            margin-top: 20px;
+            color: #94a3b8;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        #status {
+            color: #94a3b8;
+        }
+        .odds-badge {
+            display: inline-block;
+            background: #334155;
+            color: #cbd5e1;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <img src="SUB T - 16.png" class="logo">
+    <h1>Active Bets</h1>
+
+    <div id="betsList">Loading...</div>
+    <div id="status"></div>
+
+    <div class="back" onclick="window.location.href='dashboard.html'">Back to Dashboard</div>
+</div>
+
+<script>
+    const supabaseUrl = 'https://nygnhiaerazayvcgvrwe.supabase.co';
+    const supabaseKey = 'sb_publishable_vuQJdEIU6qUhTlzuD3z1yg_Vy7eH5d9';
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    let currentUser = null;
+
+    function init() {
+        const stored = localStorage.getItem('subt_user');
+        if (!stored) {
+            window.location.href = 'login.html';
+            return;
+        }
+        currentUser = JSON.parse(stored);
+        loadActiveBets();
+    }
+
+    async function loadActiveBets() {
+        const listDiv = document.getElementById('betsList');
+        const statusDiv = document.getElementById('status');
+
+        const { data: bets, error } = await supabaseClient
+            .from('bets')
+            .select('id, description, creator_id, amount, potential_win, odds, image_url, creator:profiles!bets_creator_id_fkey(name)')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            statusDiv.textContent = 'Could not load active bets: ' + error.message;
+            return;
+        }
+
+        if (!bets || bets.length === 0) {
+            listDiv.innerHTML = '';
+            statusDiv.innerHTML = '<div class="no-bets">No active bets right now</div>';
+            return;
+        }
+
+        listDiv.innerHTML = bets.map(bet => {
+            const amount = Number(bet.amount);
+            const winAmount = bet.potential_win ? Number(bet.potential_win) : amount;
+            const isCreator = bet.creator_id === currentUser.id;
+            const creatorName = bet.creator ? bet.creator.name : 'Unknown';
+
+            const youWin = isCreator ? winAmount : (amount / 2);
+            const youLose = isCreator ? amount : (winAmount / 2);
+
+            const photoHtml = bet.image_url
+                ? `<img src="${bet.image_url}" class="bet-photo">`
+                : '';
+
+            const oddsHtml = bet.odds
+                ? `<span class="odds-badge">${bet.odds}</span>`
+                : '';
+
+            return `
+                <div class="bet-card">
+                    <div class="bet-desc">${bet.description}${oddsHtml}</div>
+                    <div class="bet-creator">${isCreator ? 'Your bet' : 'Bet by ' + creatorName}</div>
+                    ${photoHtml}
+                    <div class="bet-row">
+                        <span class="label">If it hits:</span>
+                        <span class="value win">+$${youWin.toFixed(2)}</span>
+                    </div>
+                    <div class="bet-row">
+                        <span class="label">If it doesn't:</span>
+                        <span class="value lose">-$${youLose.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    init();
+</script>
+</body>
+</html>
