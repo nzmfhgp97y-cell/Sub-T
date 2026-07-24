@@ -1,101 +1,231 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sub T Dashboard</title>
-
-<style>
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    font-family:Arial, sans-serif;
-}
-
-body{
-    background:#4F2D7F;
-    min-height:100vh;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    color:white;
-}
-
-.container{
-    width:90%;
-    max-width:450px;
-    text-align:center;
-}
-
-.logo{
-    width:220px;
-    margin-bottom:20px;
-}
-
-h1{
-    margin-bottom:30px;
-    font-size:42px;
-}
-
-.balance-card{
-    background:white;
-    color:#4F2D7F;
-    border-radius:15px;
-    padding:20px;
-    margin-bottom:25px;
-    box-shadow:0 5px 15px rgba(0,0,0,.2);
-}
-
-.balance-label{
-    font-size:16px;
-    margin-bottom:10px;
-}
-
-.balance{
-    font-size:36px;
-    font-weight:bold;
-}
-
-.button{
-    display:block;
-    width:100%;
-    background:white;
-    color:#4F2D7F;
-    text-decoration:none;
-    padding:18px;
-    margin:15px 0;
-    border-radius:15px;
-    font-size:20px;
-    font-weight:bold;
-    transition:.2s;
-}
-
-.button:hover{
-    background:#D9D9DD;
-    transform:translateY(-2px);
-}
-</style>
-
+    <title>Sub T - Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .logo {
+            width: 250px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 40px;
+            margin: 10px 0 10px 0;
+        }
+        .welcome {
+            font-size: 18px;
+            color: #94a3b8;
+            margin-bottom: 25px;
+        }
+        .balance-card {
+            background: white;
+            color: #1e1b4b;
+            border-radius: 16px;
+            padding: 25px 50px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .balance-label {
+            font-size: 16px;
+            color: #4338ca;
+            margin-bottom: 5px;
+        }
+        .balance-amount {
+            font-size: 42px;
+            font-weight: bold;
+            color: #4338ca;
+        }
+        .nav-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 260px;
+        }
+        .nav-button {
+            background-color: #2563eb;
+            color: white;
+            padding: 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .nav-button:hover {
+            background-color: #1d4ed8;
+        }
+        .nav-button.admin {
+            background-color: #b91c1c;
+        }
+        .nav-button.admin:hover {
+            background-color: #991b1b;
+        }
+        .logout {
+            margin-top: 25px;
+            color: #94a3b8;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        #status {
+            color: #94a3b8;
+            margin-top: 10px;
+        }
+        .pending-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 18px 24px;
+            width: 300px;
+            margin-bottom: 25px;
+        }
+        .pending-title {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .pending-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #334155;
+            font-size: 15px;
+        }
+        .pending-item:last-child {
+            border-bottom: none;
+        }
+        .pending-swing {
+            color: #94a3b8;
+            font-size: 13px;
+        }
+        .no-pending {
+            color: #64748b;
+            font-size: 14px;
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
-
 <div class="container">
-
     <img src="SUB T - 16.png" class="logo">
-
     <h1>Sub T</h1>
+    <div class="welcome" id="welcome">Loading...</div>
 
     <div class="balance-card">
         <div class="balance-label">Current Balance</div>
-        <div class="balance">$1,000</div>
+        <div class="balance-amount" id="balance">--</div>
     </div>
 
-    <a� Active Bets</a>
+    <div class="pending-card">
+        <div class="pending-title">Pending Bets</div>
+        <div id="pendingList">Loading...</div>
+    </div>
 
-    #📊 Account Summary</a>
+    <div class="nav-buttons" id="navButtons"></div>
 
+    <div class="logout" onclick="logout()">Log Out</div>
+    <div id="status"></div>
 </div>
 
+<script>
+    const supabaseUrl = 'https://nygnhiaerazayvcgvrwe.supabase.co';
+    const supabaseKey = 'sb_publishable_vuQJdEIU6qUhTlzuD3z1yg_Vy7eH5d9';
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+    const STARTING_BALANCE = 0;
+
+    let currentUser = null;
+
+    async function init() {
+        const stored = localStorage.getItem('subt_user');
+        if (!stored) {
+            window.location.href = 'login.html';
+            return;
+        }
+        currentUser = JSON.parse(stored);
+        document.getElementById('welcome').textContent = 'Welcome, ' + currentUser.name;
+
+        // Build nav buttons based on role
+        const navDiv = document.getElementById('navButtons');
+        navDiv.innerHTML = `
+            <a href="place-bet.html" class="nav-button">Place a Bet</a>
+            <a href="history.html" class="nav-button">History</a>
+        `;
+        if (currentUser.role === 'admin') {
+            navDiv.innerHTML += `<a href="verify.html" class="nav-button admin">Verify Wins/Losses</a>`;
+        }
+
+        await loadBets();
+    }
+
+    async function loadBets() {
+        const statusDiv = document.getElementById('status');
+
+        const { data: bets, error } = await supabaseClient
+            .from('bets')
+            .select('id, description, creator_id, amount, status');
+
+        if (error) {
+            statusDiv.textContent = 'Could not load bets: ' + error.message;
+            return;
+        }
+
+        // Settled balance from confirmed bets only
+        let balance = STARTING_BALANCE;
+        const pendingBets = [];
+
+        for (const bet of bets) {
+            const amount = Number(bet.amount);
+            const isCreator = bet.creator_id === currentUser.id;
+
+            if (bet.status === 'won') {
+                balance += isCreator ? amount * 2 : -amount;
+            } else if (bet.status === 'lost') {
+                balance += isCreator ? -amount * 2 : amount;
+            } else if (bet.status === 'pending') {
+                pendingBets.push({
+                    description: bet.description,
+                    winSwing: isCreator ? amount * 2 : amount,
+                    loseSwing: isCreator ? -amount * 2 : -amount
+                });
+            }
+        }
+
+        document.getElementById('balance').textContent = '$' + balance.toLocaleString();
+
+        const pendingListDiv = document.getElementById('pendingList');
+        if (pendingBets.length === 0) {
+            pendingListDiv.innerHTML = '<div class="no-pending">No outstanding bets</div>';
+        } else {
+            pendingListDiv.innerHTML = pendingBets.map(b => `
+                <div class="pending-item">
+                    <span>${b.description}</span>
+                    <span class="pending-swing">+$${b.winSwing} / -$${Math.abs(b.loseSwing)}</span>
+                </div>
+            `).join('');
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('subt_user');
+        window.location.href = 'login.html';
+    }
+
+    init();
+</script>
 </body>
 </html>
