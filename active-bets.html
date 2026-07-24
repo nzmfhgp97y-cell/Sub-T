@@ -87,12 +87,73 @@
             border-radius: 6px;
             margin-left: 8px;
         }
+        .summary-card {
+            background: white;
+            color: #1e1b4b;
+            border-radius: 14px;
+            padding: 18px 30px;
+            display: flex;
+            gap: 30px;
+            margin-bottom: 25px;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .summary-value.win { color: #16a34a; }
+        .summary-value.lose { color: #dc2626; }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: #1e293b;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #334155;
+        }
+        .tab.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <img src="SUB T - 16.png" class="logo">
     <h1>Active Bets</h1>
+
+    <div class="summary-card">
+        <div class="summary-item">
+            <div class="summary-label">Total At Risk</div>
+            <div class="summary-value lose" id="totalRisk">--</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Total Potential Win</div>
+            <div class="summary-value win" id="totalPotential">--</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" id="tabMine" onclick="switchTab('mine')">My Bets</div>
+        <div class="tab" id="tabOthers" onclick="switchTab('others')">Others' Bets</div>
+    </div>
 
     <div id="betsList">Loading...</div>
     <div id="status"></div>
@@ -106,6 +167,8 @@
     const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     let currentUser = null;
+    let allBets = [];
+    let currentTab = 'mine';
 
     function init() {
         const stored = localStorage.getItem('subt_user');
@@ -132,25 +195,53 @@
             return;
         }
 
-        if (!bets || bets.length === 0) {
-            listDiv.innerHTML = '';
-            statusDiv.innerHTML = '<div class="no-bets">No active bets right now</div>';
-            return;
-        }
-
-        listDiv.innerHTML = bets.map(bet => {
+        allBets = (bets || []).map(bet => {
             const amount = Number(bet.amount);
             const winAmount = bet.potential_win ? Number(bet.potential_win) : amount;
             const isCreator = bet.creator_id === currentUser.id;
             const creatorName = bet.creator ? bet.creator.name : 'Unknown';
+            return {
+                ...bet,
+                isCreator,
+                creatorName,
+                youWin: isCreator ? winAmount : (amount / 2),
+                youLose: isCreator ? amount : (winAmount / 2)
+            };
+        });
 
-            const youWin = isCreator ? winAmount : (amount / 2);
-            const youLose = isCreator ? amount : (winAmount / 2);
+        // Summary totals across ALL active bets (both yours and others') since that's your real exposure
+        const totalRisk = allBets.reduce((sum, b) => sum + b.youLose, 0);
+        const totalPotential = allBets.reduce((sum, b) => sum + b.youWin, 0);
+        document.getElementById('totalRisk').textContent = '$' + totalRisk.toFixed(2);
+        document.getElementById('totalPotential').textContent = '$' + totalPotential.toFixed(2);
 
+        renderTab();
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById('tabMine').classList.toggle('active', tab === 'mine');
+        document.getElementById('tabOthers').classList.toggle('active', tab === 'others');
+        renderTab();
+    }
+
+    function renderTab() {
+        const listDiv = document.getElementById('betsList');
+        const statusDiv = document.getElementById('status');
+
+        const filtered = allBets.filter(b => currentTab === 'mine' ? b.isCreator : !b.isCreator);
+
+        if (filtered.length === 0) {
+            listDiv.innerHTML = '';
+            statusDiv.innerHTML = `<div class="no-bets">${currentTab === 'mine' ? "You haven't placed any active bets" : "No active bets from others right now"}</div>`;
+            return;
+        }
+        statusDiv.innerHTML = '';
+
+        listDiv.innerHTML = filtered.map(bet => {
             const photoHtml = bet.image_url
                 ? `<img src="${bet.image_url}" class="bet-photo">`
                 : '';
-
             const oddsHtml = bet.odds
                 ? `<span class="odds-badge">${bet.odds}</span>`
                 : '';
@@ -158,15 +249,15 @@
             return `
                 <div class="bet-card">
                     <div class="bet-desc">${bet.description}${oddsHtml}</div>
-                    <div class="bet-creator">${isCreator ? 'Your bet' : 'Bet by ' + creatorName}</div>
+                    <div class="bet-creator">${bet.isCreator ? 'Your bet' : 'Bet by ' + bet.creatorName}</div>
                     ${photoHtml}
                     <div class="bet-row">
                         <span class="label">If it hits:</span>
-                        <span class="value win">+$${youWin.toFixed(2)}</span>
+                        <span class="value win">+$${bet.youWin.toFixed(2)}</span>
                     </div>
                     <div class="bet-row">
                         <span class="label">If it doesn't:</span>
-                        <span class="value lose">-$${youLose.toFixed(2)}</span>
+                        <span class="value lose">-$${bet.youLose.toFixed(2)}</span>
                     </div>
                 </div>
             `;
