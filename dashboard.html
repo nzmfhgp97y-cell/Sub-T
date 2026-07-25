@@ -127,13 +127,8 @@
     <div class="welcome" id="welcome">Loading...</div>
 
     <div class="balance-card">
-        <div class="balance-label">Current Cycle Balance</div>
+        <div class="balance-label">Current Balance</div>
         <div class="balance-amount" id="balance">--</div>
-    </div>
-
-    <div class="balance-card" style="background: #1e293b; border: 1px solid #334155;">
-        <div class="balance-label" style="color: #94a3b8;">All-Time Balance</div>
-        <div class="balance-amount" id="allTimeBalance" style="color: white;">--</div>
     </div>
 
     <div class="nav-buttons" id="navButtons"></div>
@@ -236,7 +231,6 @@
         }
 
         document.getElementById('balance').textContent = '$' + cycleBalance.toLocaleString();
-        document.getElementById('allTimeBalance').textContent = '$' + allTimeBalance.toLocaleString();
     }
 
     function logout() {

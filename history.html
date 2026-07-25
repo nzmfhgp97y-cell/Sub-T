@@ -175,6 +175,11 @@
         </div>
     </div>
 
+    <div class="tabs" id="periodTabs">
+        <div class="tab active" id="tabCycle" onclick="switchPeriod('cycle')">Current Cycle</div>
+        <div class="tab" id="tabAllTime" onclick="switchPeriod('alltime')">All Time</div>
+    </div>
+
     <div class="tabs">
         <div class="tab active" id="tabMine" onclick="switchTab('mine')">My Bets</div>
         <div class="tab" id="tabAll" onclick="switchTab('all')">All Bets</div>
@@ -194,6 +199,8 @@
     let currentUser = null;
     let allBets = [];
     let currentTab = 'mine';
+    let currentPeriod = 'cycle';
+    let cycleStart = new Date(0);
 
     function init() {
         const stored = localStorage.getItem('subt_user');
@@ -207,6 +214,15 @@
 
     async function loadHistory() {
         const statusDiv = document.getElementById('status');
+
+        const { data: settings } = await supabaseClient
+            .from('app_settings')
+            .select('cycle_start')
+            .eq('id', 1)
+            .single();
+        if (settings) {
+            cycleStart = new Date(settings.cycle_start);
+        }
 
         const { data: bets, error } = await supabaseClient
             .from('bets')
@@ -270,10 +286,13 @@
 
         allBets = [...betEntries, ...adjustmentEntries].sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate));
 
-        // Summary based on YOUR results across all history
+        renderTab();
+    }
+
+    function updateSummary(entries) {
         let totalWon = 0;
         let totalLost = 0;
-        allBets.forEach(b => {
+        entries.forEach(b => {
             if (b.yourResult > 0) totalWon += b.yourResult;
             else totalLost += Math.abs(b.yourResult);
         });
@@ -284,7 +303,12 @@
         const netDiv = document.getElementById('netTotal');
         netDiv.textContent = (net >= 0 ? '+$' : '-$') + Math.abs(net).toFixed(2);
         netDiv.className = 'summary-value ' + (net >= 0 ? 'win' : 'lose');
+    }
 
+    function switchPeriod(period) {
+        currentPeriod = period;
+        document.getElementById('tabCycle').classList.toggle('active', period === 'cycle');
+        document.getElementById('tabAllTime').classList.toggle('active', period === 'alltime');
         renderTab();
     }
 
@@ -299,9 +323,15 @@
         const listDiv = document.getElementById('betsList');
         const statusDiv = document.getElementById('status');
 
-        const displayBets = currentTab === 'mine'
-            ? allBets.filter(b => b.isCreator)
+        const periodFiltered = currentPeriod === 'cycle'
+            ? allBets.filter(b => new Date(b.sortDate) >= cycleStart)
             : allBets;
+
+        updateSummary(periodFiltered);
+
+        const displayBets = currentTab === 'mine'
+            ? periodFiltered.filter(b => b.isCreator)
+            : periodFiltered;
 
         if (displayBets.length === 0) {
             listDiv.innerHTML = '';
