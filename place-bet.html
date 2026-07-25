@@ -184,6 +184,10 @@
             return;
         }
         currentUser = JSON.parse(stored);
+        if (currentUser.role === 'admin') {
+            window.location.href = 'dashboard.html';
+            return;
+        }
     }
 
     function previewPhoto() {

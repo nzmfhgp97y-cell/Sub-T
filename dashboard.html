@@ -126,7 +126,7 @@
     <h1>Sub T</h1>
     <div class="welcome" id="welcome">Loading...</div>
 
-    <div class="balance-card">
+    <div class="balance-card" id="balanceCard">
         <div class="balance-label">Current Balance</div>
         <div class="balance-amount" id="balance">--</div>
     </div>
@@ -156,17 +156,24 @@
 
         // Build nav buttons based on role
         const navDiv = document.getElementById('navButtons');
-        navDiv.innerHTML = `
-            <a href="place-bet.html" class="nav-button">Place a Bet</a>
-            <a href="active-bets.html" class="nav-button">Active Bets</a>
-            <a href="history.html" class="nav-button">History</a>
-        `;
-        if (currentUser.role === 'admin') {
-            navDiv.innerHTML += `<a href="verify.html" class="nav-button admin">Verify Wins/Losses</a>`;
-            navDiv.innerHTML += `<a href="admin-tools.html" class="nav-button admin">Admin Tools</a>`;
-        }
 
-        await loadBets();
+        if (currentUser.role === 'admin') {
+            // Admins don't bet and don't have a balance
+            document.getElementById('balanceCard').style.display = 'none';
+            navDiv.innerHTML = `
+                <a href="active-bets.html" class="nav-button">Active Bets</a>
+                <a href="history.html" class="nav-button">History</a>
+                <a href="verify.html" class="nav-button admin">Verify Wins/Losses</a>
+                <a href="admin-tools.html" class="nav-button admin">Admin Tools</a>
+            `;
+        } else {
+            navDiv.innerHTML = `
+                <a href="place-bet.html" class="nav-button">Place a Bet</a>
+                <a href="active-bets.html" class="nav-button">Active Bets</a>
+                <a href="history.html" class="nav-button">History</a>
+            `;
+            await loadBets();
+        }
     }
 
     async function loadBets() {

@@ -105,6 +105,19 @@
             background: #dc2626;
             color: white;
         }
+        .outcome-badge.void {
+            background: #64748b;
+            color: white;
+        }
+        .admin-comment {
+            font-size: 13px;
+            color: #cbd5e1;
+            font-style: italic;
+            background: #0f172a;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-top: 8px;
+        }
         .bet-meta {
             font-size: 13px;
             color: #64748b;
@@ -226,8 +239,8 @@
 
         const { data: bets, error } = await supabaseClient
             .from('bets')
-            .select('id, description, creator_id, amount, potential_win, odds, image_url, status, resolved_at, creator:profiles!bets_creator_id_fkey(name)')
-            .in('status', ['won', 'lost'])
+            .select('id, description, creator_id, amount, potential_win, odds, image_url, status, resolved_at, admin_comment, creator:profiles!bets_creator_id_fkey(name)')
+            .in('status', ['won', 'lost', 'void'])
             .order('resolved_at', { ascending: false });
 
         if (error) {
@@ -254,8 +267,10 @@
             let yourResult;
             if (bet.status === 'won') {
                 yourResult = isCreator ? winAmount : -(winAmount / 2);
-            } else {
+            } else if (bet.status === 'lost') {
                 yourResult = isCreator ? -amount : (amount / 2);
+            } else {
+                yourResult = 0; // void/tie - no money changes hands
             }
 
             return {
@@ -376,7 +391,7 @@
                 <div class="bet-card">
                     <div class="bet-top">
                         <div class="bet-desc">${entry.description}${oddsHtml}</div>
-                        <span class="outcome-badge ${entry.status}">${entry.status.toUpperCase()}</span>
+                        <span class="outcome-badge ${entry.status}">${entry.status === 'void' ? 'TIE / VOID' : entry.status.toUpperCase()}</span>
                     </div>
                     <div class="bet-meta">Bet by ${entry.isCreator ? 'you' : entry.creatorName} &middot; Resolved ${resolvedDate}</div>
                     ${photoHtml}
@@ -385,6 +400,7 @@
                         <span>$${Number(entry.amount).toFixed(2)}</span>
                     </div>
                     <div class="result-amount ${resultClass}">${resultSign}$${Math.abs(entry.yourResult).toFixed(2)}</div>
+                    ${entry.admin_comment ? `<div class="admin-comment">"${entry.admin_comment}"</div>` : ''}
                 </div>
             `;
         }).join('');
