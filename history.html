@@ -219,7 +219,17 @@
             return;
         }
 
-        allBets = (bets || []).map(bet => {
+        const { data: adjustments, error: adjError } = await supabaseClient
+            .from('adjustments')
+            .select('id, target_user_id, amount, reason, created_at, target:profiles!adjustments_target_user_id_fkey(name)')
+            .order('created_at', { ascending: false });
+
+        if (adjError) {
+            statusDiv.textContent = 'Could not load adjustments: ' + adjError.message;
+            return;
+        }
+
+        const betEntries = (bets || []).map(bet => {
             const amount = Number(bet.amount);
             const winAmount = bet.potential_win ? Number(bet.potential_win) : amount;
             const isCreator = bet.creator_id === currentUser.id;
@@ -232,8 +242,33 @@
                 yourResult = isCreator ? -amount : (amount / 2);
             }
 
-            return { ...bet, isCreator, creatorName, yourResult };
+            return {
+                type: 'bet',
+                isCreator,
+                creatorName,
+                yourResult,
+                sortDate: bet.resolved_at,
+                ...bet
+            };
         });
+
+        const adjustmentEntries = (adjustments || []).map(adj => {
+            const isTarget = adj.target_user_id === currentUser.id;
+            const targetName = adj.target ? adj.target.name : 'Unknown';
+            const yourResult = isTarget ? Number(adj.amount) : -(Number(adj.amount) / 2);
+
+            return {
+                type: 'adjustment',
+                isCreator: isTarget,
+                creatorName: targetName,
+                yourResult,
+                sortDate: adj.created_at,
+                reason: adj.reason,
+                ...adj
+            };
+        });
+
+        allBets = [...betEntries, ...adjustmentEntries].sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate));
 
         // Summary based on YOUR results across all history
         let totalWon = 0;
@@ -275,30 +310,51 @@
         }
         statusDiv.innerHTML = '';
 
-        listDiv.innerHTML = displayBets.map(bet => {
-            const resolvedDate = bet.resolved_at ? new Date(bet.resolved_at).toLocaleDateString() : '';
-            const photoHtml = bet.image_url
-                ? `<img src="${bet.image_url}" class="bet-photo">`
+        listDiv.innerHTML = displayBets.map(entry => {
+            const resultClass = entry.yourResult >= 0 ? 'win' : 'lose';
+            const resultSign = entry.yourResult >= 0 ? '+' : '-';
+
+            if (entry.type === 'adjustment') {
+                const resolvedDate = new Date(entry.created_at).toLocaleDateString();
+                return `
+                    <div class="bet-card">
+                        <div class="bet-top">
+                            <div class="bet-desc">Admin Change</div>
+                            <span class="outcome-badge" style="background:#7c3aed;color:white;">ADMIN</span>
+                        </div>
+                        <div class="bet-meta">${entry.creatorName} &middot; ${resolvedDate}</div>
+                        <div class="bet-row">
+                            <span>Reason</span>
+                        </div>
+                        <div class="bet-row" style="color:#cbd5e1; font-style: italic;">
+                            <span>${entry.reason}</span>
+                        </div>
+                        <div class="result-amount ${resultClass}">${resultSign}$${Math.abs(entry.yourResult).toFixed(2)}</div>
+                    </div>
+                `;
+            }
+
+            const resolvedDate = entry.resolved_at ? new Date(entry.resolved_at).toLocaleDateString() : '';
+            const photoHtml = entry.image_url
+                ? `<img src="${entry.image_url}" class="bet-photo">`
                 : '';
-            const oddsHtml = bet.odds
-                ? `<span class="odds-badge">${bet.odds}</span>`
+            const oddsHtml = entry.odds
+                ? `<span class="odds-badge">${entry.odds}</span>`
                 : '';
-            const resultClass = bet.yourResult >= 0 ? 'win' : 'lose';
-            const resultSign = bet.yourResult >= 0 ? '+' : '-';
 
             return `
                 <div class="bet-card">
                     <div class="bet-top">
-                        <div class="bet-desc">${bet.description}${oddsHtml}</div>
-                        <span class="outcome-badge ${bet.status}">${bet.status.toUpperCase()}</span>
+                        <div class="bet-desc">${entry.description}${oddsHtml}</div>
+                        <span class="outcome-badge ${entry.status}">${entry.status.toUpperCase()}</span>
                     </div>
-                    <div class="bet-meta">Bet by ${bet.isCreator ? 'you' : bet.creatorName} &middot; Resolved ${resolvedDate}</div>
+                    <div class="bet-meta">Bet by ${entry.isCreator ? 'you' : entry.creatorName} &middot; Resolved ${resolvedDate}</div>
                     ${photoHtml}
                     <div class="bet-row">
                         <span>Wager</span>
-                        <span>$${Number(bet.amount).toFixed(2)}</span>
+                        <span>$${Number(entry.amount).toFixed(2)}</span>
                     </div>
-                    <div class="result-amount ${resultClass}">${resultSign}$${Math.abs(bet.yourResult).toFixed(2)}</div>
+                    <div class="result-amount ${resultClass}">${resultSign}$${Math.abs(entry.yourResult).toFixed(2)}</div>
                 </div>
             `;
         }).join('');

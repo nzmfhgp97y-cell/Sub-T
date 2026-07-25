@@ -127,8 +127,13 @@
     <div class="welcome" id="welcome">Loading...</div>
 
     <div class="balance-card">
-        <div class="balance-label">Current Balance</div>
+        <div class="balance-label">Current Cycle Balance</div>
         <div class="balance-amount" id="balance">--</div>
+    </div>
+
+    <div class="balance-card" style="background: #1e293b; border: 1px solid #334155;">
+        <div class="balance-label" style="color: #94a3b8;">All-Time Balance</div>
+        <div class="balance-amount" id="allTimeBalance" style="color: white;">--</div>
     </div>
 
     <div class="nav-buttons" id="navButtons"></div>
@@ -163,6 +168,7 @@
         `;
         if (currentUser.role === 'admin') {
             navDiv.innerHTML += `<a href="verify.html" class="nav-button admin">Verify Wins/Losses</a>`;
+            navDiv.innerHTML += `<a href="admin-tools.html" class="nav-button admin">Admin Tools</a>`;
         }
 
         await loadBets();
@@ -171,9 +177,16 @@
     async function loadBets() {
         const statusDiv = document.getElementById('status');
 
+        const { data: settings } = await supabaseClient
+            .from('app_settings')
+            .select('cycle_start')
+            .eq('id', 1)
+            .single();
+        const cycleStart = settings ? new Date(settings.cycle_start) : new Date(0);
+
         const { data: bets, error } = await supabaseClient
             .from('bets')
-            .select('creator_id, amount, potential_win, status')
+            .select('creator_id, amount, potential_win, status, resolved_at')
             .neq('status', 'pending');
 
         if (error) {
@@ -181,21 +194,49 @@
             return;
         }
 
-        let balance = STARTING_BALANCE;
+        const { data: adjustments, error: adjError } = await supabaseClient
+            .from('adjustments')
+            .select('target_user_id, amount, created_at');
+
+        if (adjError) {
+            statusDiv.textContent = 'Could not load adjustments: ' + adjError.message;
+            return;
+        }
+
+        let allTimeBalance = STARTING_BALANCE;
+        let cycleBalance = STARTING_BALANCE;
 
         for (const bet of bets) {
             const amount = Number(bet.amount);
             const winAmount = bet.potential_win ? Number(bet.potential_win) : amount;
             const isCreator = bet.creator_id === currentUser.id;
+            let change = 0;
 
             if (bet.status === 'won') {
-                balance += isCreator ? winAmount : -(winAmount / 2);
+                change = isCreator ? winAmount : -(winAmount / 2);
             } else if (bet.status === 'lost') {
-                balance += isCreator ? -amount : (amount / 2);
+                change = isCreator ? -amount : (amount / 2);
+            }
+
+            allTimeBalance += change;
+            if (bet.resolved_at && new Date(bet.resolved_at) >= cycleStart) {
+                cycleBalance += change;
             }
         }
 
-        document.getElementById('balance').textContent = '$' + balance.toLocaleString();
+        for (const adj of adjustments) {
+            const amount = Number(adj.amount);
+            const isTarget = adj.target_user_id === currentUser.id;
+            const change = isTarget ? amount : -(amount / 2);
+
+            allTimeBalance += change;
+            if (adj.created_at && new Date(adj.created_at) >= cycleStart) {
+                cycleBalance += change;
+            }
+        }
+
+        document.getElementById('balance').textContent = '$' + cycleBalance.toLocaleString();
+        document.getElementById('allTimeBalance').textContent = '$' + allTimeBalance.toLocaleString();
     }
 
     function logout() {

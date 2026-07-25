@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sub T - Admin Tools</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+        }
+        .logo {
+            width: 160px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 30px;
+            margin: 5px 0 25px 0;
+        }
+        .section {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 24px;
+            width: 300px;
+            margin-bottom: 24px;
+            box-sizing: border-box;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .section-desc {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        select, input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 14px;
+            border-radius: 8px;
+            border: none;
+            font-size: 15px;
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+        }
+        textarea {
+            resize: none;
+            height: 60px;
+        }
+        button {
+            width: 100%;
+            padding: 13px;
+            border-radius: 8px;
+            border: none;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-adjust {
+            background-color: #2563eb;
+            color: white;
+        }
+        .btn-adjust:hover {
+            background-color: #1d4ed8;
+        }
+        .btn-danger {
+            background-color: #b91c1c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #991b1b;
+        }
+        button:disabled {
+            background-color: #475569;
+            cursor: not-allowed;
+        }
+        #adjustMessage, #cycleMessage {
+            font-size: 13px;
+            margin-top: 10px;
+            min-height: 18px;
+        }
+        .error { color: #f87171; }
+        .success { color: #4ade80; }
+        .current-cycle-info {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+        .back {
+            margin-top: 10px;
+            color: #94a3b8;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <img src="SUB T - 16.png" class="logo">
+    <h1>Admin Tools</h1>
+
+    <div class="section">
+        <div class="section-title">Adjust a Player's Balance</div>
+        <div class="section-desc">
+            This applies directly to the selected player. The other two players automatically split the opposite amount, so everyone stays balanced.
+        </div>
+
+        <label for="playerSelect">Player</label>
+        <select id="playerSelect">
+            <option value="">Loading players...</option>
+        </select>
+
+        <label for="adjustAmount">Amount (use negative for a deduction)</label>
+        <input type="number" id="adjustAmount" placeholder="e.g. 50 or -50">
+
+        <label for="adjustReason">Reason</label>
+        <textarea id="adjustReason" placeholder="e.g. Fixing a misclick on the Scheffler bet"></textarea>
+
+        <button class="btn-adjust" id="adjustBtn" onclick="submitAdjustment()">Apply Adjustment</button>
+        <div id="adjustMessage"></div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Start New Cycle</div>
+        <div class="section-desc">
+            Use this once everyone has settled up in real life. It marks a fresh starting point &mdash; "Current Cycle Balance" resets to $0 for everyone, but nothing is deleted. All-Time totals and full history stay intact forever.
+        </div>
+        <div class="current-cycle-info" id="cycleInfo">Loading current cycle info...</div>
+        <button class="btn-danger" id="cycleBtn" onclick="startNewCycle()">Start New Cycle</button>
+        <div id="cycleMessage"></div>
+    </div>
+
+    <div class="back" onclick="window.location.href='dashboard.html'">Back to Dashboard</div>
+</div>
+
+<script>
+    const supabaseUrl = 'https://nygnhiaerazayvcgvrwe.supabase.co';
+    const supabaseKey = 'sb_publishable_vuQJdEIU6qUhTlzuD3z1yg_Vy7eH5d9';
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    let currentUser = null;
+
+    function init() {
+        const stored = localStorage.getItem('subt_user');
+        if (!stored) {
+            window.location.href = 'login.html';
+            return;
+        }
+        currentUser = JSON.parse(stored);
+
+        if (currentUser.role !== 'admin') {
+            window.location.href = 'dashboard.html';
+            return;
+        }
+
+        loadPlayers();
+        loadCycleInfo();
+    }
+
+    async function loadPlayers() {
+        const select = document.getElementById('playerSelect');
+        const { data: players, error } = await supabaseClient
+            .from('profiles')
+            .select('id, name')
+            .order('name');
+
+        if (error) {
+            select.innerHTML = '<option value="">Could not load players</option>';
+            return;
+        }
+
+        select.innerHTML = players.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    }
+
+    async function loadCycleInfo() {
+        const infoDiv = document.getElementById('cycleInfo');
+        const { data: settings, error } = await supabaseClient
+            .from('app_settings')
+            .select('cycle_start')
+            .eq('id', 1)
+            .single();
+
+        if (error) {
+            infoDiv.textContent = 'Could not load cycle info.';
+            return;
+        }
+
+        const startDate = new Date(settings.cycle_start).toLocaleDateString();
+        infoDiv.textContent = 'Current cycle started: ' + startDate;
+    }
+
+    async function submitAdjustment() {
+        const playerId = document.getElementById('playerSelect').value;
+        const amount = document.getElementById('adjustAmount').value;
+        const reason = document.getElementById('adjustReason').value.trim();
+        const messageDiv = document.getElementById('adjustMessage');
+        const btn = document.getElementById('adjustBtn');
+
+        messageDiv.textContent = '';
+        messageDiv.className = '';
+
+        if (!playerId) {
+            messageDiv.textContent = 'Please select a player.';
+            messageDiv.className = 'error';
+            return;
+        }
+        if (!amount || Number(amount) === 0) {
+            messageDiv.textContent = 'Please enter a non-zero amount.';
+            messageDiv.className = 'error';
+            return;
+        }
+        if (!reason) {
+            messageDiv.textContent = 'Please enter a reason.';
+            messageDiv.className = 'error';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Applying...';
+
+        const { error } = await supabaseClient
+            .from('adjustments')
+            .insert({
+                target_user_id: playerId,
+                amount: Number(amount),
+                reason: reason,
+                created_by: currentUser.id
+            });
+
+        btn.disabled = false;
+        btn.textContent = 'Apply Adjustment';
+
+        if (error) {
+            messageDiv.textContent = 'Could not apply adjustment: ' + error.message;
+            messageDiv.className = 'error';
+            return;
+        }
+
+        messageDiv.textContent = 'Adjustment applied successfully.';
+        messageDiv.className = 'success';
+        document.getElementById('adjustAmount').value = '';
+        document.getElementById('adjustReason').value = '';
+    }
+
+    async function startNewCycle() {
+        const messageDiv = document.getElementById('cycleMessage');
+        const btn = document.getElementById('cycleBtn');
+
+        const confirmed = confirm('Are you sure? This will reset everyone\'s "Current Cycle" balance to $0. All-Time totals and full history will NOT be affected.');
+        if (!confirmed) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Starting...';
+
+        const { error } = await supabaseClient
+            .from('app_settings')
+            .update({ cycle_start: new Date().toISOString() })
+            .eq('id', 1);
+
+        btn.disabled = false;
+        btn.textContent = 'Start New Cycle';
+
+        if (error) {
+            messageDiv.textContent = 'Could not start new cycle: ' + error.message;
+            messageDiv.className = 'error';
+            return;
+        }
+
+        messageDiv.textContent = 'New cycle started! Everyone\'s Current Cycle balance is now $0.';
+        messageDiv.className = 'success';
+        loadCycleInfo();
+    }
+
+    init();
+</script>
+</body>
+</html>
