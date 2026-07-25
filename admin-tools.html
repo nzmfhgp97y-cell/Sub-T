@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Sub T - Admin Tools</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -110,6 +111,44 @@
             cursor: pointer;
             text-decoration: underline;
         }
+        .delete-bet-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+        .delete-bet-info {
+            font-size: 13px;
+            color: #cbd5e1;
+            flex: 1;
+        }
+        .delete-bet-status {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        .btn-delete {
+            background-color: #dc2626;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-delete:hover {
+            background-color: #b91c1c;
+        }
+        .btn-delete:disabled {
+            background-color: #475569;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -148,6 +187,14 @@
         <div id="cycleMessage"></div>
     </div>
 
+    <div class="section">
+        <div class="section-title">Delete a Bet</div>
+        <div class="section-desc">
+            Permanently removes a bet from the system &mdash; useful for cleaning up test bets. This cannot be undone and does not affect anyone's balance history beyond removing this bet's impact.
+        </div>
+        <div id="deleteBetsList">Loading bets...</div>
+    </div>
+
     <div class="back" onclick="window.location.href='dashboard.html'">Back to Dashboard</div>
 </div>
 
@@ -173,6 +220,63 @@
 
         loadPlayers();
         loadCycleInfo();
+        loadDeletableBets();
+    }
+
+    async function loadDeletableBets() {
+        const listDiv = document.getElementById('deleteBetsList');
+        const { data: bets, error } = await supabaseClient
+            .from('bets')
+            .select('id, description, status, amount, created_at, creator:profiles!bets_creator_id_fkey(name)')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            listDiv.innerHTML = 'Could not load bets: ' + error.message;
+            return;
+        }
+
+        if (!bets || bets.length === 0) {
+            listDiv.innerHTML = '<div style="color:#64748b; font-style: italic;">No bets in the system</div>';
+            return;
+        }
+
+        listDiv.innerHTML = bets.map(bet => {
+            const creatorName = bet.creator ? bet.creator.name : 'Unknown';
+            const placedDate = new Date(bet.created_at).toLocaleDateString();
+            return `
+                <div class="delete-bet-item" id="delete-bet-${bet.id}">
+                    <div class="delete-bet-info">
+                        <div>${bet.description} &mdash; $${Number(bet.amount).toFixed(2)}</div>
+                        <div class="delete-bet-status">${bet.status} &middot; ${creatorName} &middot; ${placedDate}</div>
+                    </div>
+                    <button class="btn-delete" onclick="deleteBet('${bet.id}')">Delete</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function deleteBet(betId) {
+        const confirmed = confirm('Permanently delete this bet? This cannot be undone.');
+        if (!confirmed) return;
+
+        const item = document.getElementById('delete-bet-' + betId);
+        const btn = item.querySelector('button');
+        btn.disabled = true;
+        btn.textContent = 'Deleting...';
+
+        const { error } = await supabaseClient
+            .from('bets')
+            .delete()
+            .eq('id', betId);
+
+        if (error) {
+            alert('Could not delete bet: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+            return;
+        }
+
+        item.remove();
     }
 
     async function loadPlayers() {
