@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sub T - History</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+        }
+        .logo {
+            width: 160px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 30px;
+            margin: 5px 0 20px 0;
+        }
+        .summary-card {
+            background: white;
+            color: #1e1b4b;
+            border-radius: 14px;
+            padding: 18px 30px;
+            display: flex;
+            gap: 30px;
+            margin-bottom: 25px;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .summary-value.win { color: #16a34a; }
+        .summary-value.lose { color: #dc2626; }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: #1e293b;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #334155;
+        }
+        .tab.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+        .bet-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 18px 22px;
+            width: 340px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+        .bet-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .bet-desc {
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .outcome-badge {
+            font-size: 12px;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 20px;
+            white-space: nowrap;
+            margin-left: 10px;
+        }
+        .outcome-badge.won {
+            background: #16a34a;
+            color: white;
+        }
+        .outcome-badge.lost {
+            background: #dc2626;
+            color: white;
+        }
+        .bet-meta {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+        .bet-photo {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .bet-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            padding: 3px 0;
+        }
+        .odds-badge {
+            display: inline-block;
+            background: #334155;
+            color: #cbd5e1;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin-left: 8px;
+        }
+        .result-amount {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 8px;
+            text-align: right;
+        }
+        .result-amount.win { color: #4ade80; }
+        .result-amount.lose { color: #f87171; }
+        .no-bets {
+            color: #64748b;
+            font-style: italic;
+            margin-top: 20px;
+        }
+        .back {
+            margin-top: 20px;
+            color: #94a3b8;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        #status {
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <img src="SUB T - 16.png" class="logo">
+    <h1>History</h1>
+
+    <div class="summary-card">
+        <div class="summary-item">
+            <div class="summary-label">Total Won</div>
+            <div class="summary-value win" id="totalWon">--</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Total Lost</div>
+            <div class="summary-value lose" id="totalLost">--</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Net</div>
+            <div class="summary-value" id="netTotal">--</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" id="tabMine" onclick="switchTab('mine')">My Bets</div>
+        <div class="tab" id="tabAll" onclick="switchTab('all')">All Bets</div>
+    </div>
+
+    <div id="betsList">Loading...</div>
+    <div id="status"></div>
+
+    <div class="back" onclick="window.location.href='dashboard.html'">Back to Dashboard</div>
+</div>
+
+<script>
+    const supabaseUrl = 'https://nygnhiaerazayvcgvrwe.supabase.co';
+    const supabaseKey = 'sb_publishable_vuQJdEIU6qUhTlzuD3z1yg_Vy7eH5d9';
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    let currentUser = null;
+    let allBets = [];
+    let currentTab = 'mine';
+
+    function init() {
+        const stored = localStorage.getItem('subt_user');
+        if (!stored) {
+            window.location.href = 'login.html';
+            return;
+        }
+        currentUser = JSON.parse(stored);
+        loadHistory();
+    }
+
+    async function loadHistory() {
+        const statusDiv = document.getElementById('status');
+
+        const { data: bets, error } = await supabaseClient
+            .from('bets')
+            .select('id, description, creator_id, amount, potential_win, odds, image_url, status, resolved_at, creator:profiles!bets_creator_id_fkey(name)')
+            .in('status', ['won', 'lost'])
+            .order('resolved_at', { ascending: false });
+
+        if (error) {
+            statusDiv.textContent = 'Could not load history: ' + error.message;
+            return;
+        }
+
+        allBets = (bets || []).map(bet => {
+            const amount = Number(bet.amount);
+            const winAmount = bet.potential_win ? Number(bet.potential_win) : amount;
+            const isCreator = bet.creator_id === currentUser.id;
+            const creatorName = bet.creator ? bet.creator.name : 'Unknown';
+
+            let yourResult;
+            if (bet.status === 'won') {
+                yourResult = isCreator ? winAmount : -(winAmount / 2);
+            } else {
+                yourResult = isCreator ? -amount : (amount / 2);
+            }
+
+            return { ...bet, isCreator, creatorName, yourResult };
+        });
+
+        // Summary based on YOUR results across all history
+        let totalWon = 0;
+        let totalLost = 0;
+        allBets.forEach(b => {
+            if (b.yourResult > 0) totalWon += b.yourResult;
+            else totalLost += Math.abs(b.yourResult);
+        });
+        const net = totalWon - totalLost;
+
+        document.getElementById('totalWon').textContent = '$' + totalWon.toFixed(2);
+        document.getElementById('totalLost').textContent = '$' + totalLost.toFixed(2);
+        const netDiv = document.getElementById('netTotal');
+        netDiv.textContent = (net >= 0 ? '+$' : '-$') + Math.abs(net).toFixed(2);
+        netDiv.className = 'summary-value ' + (net >= 0 ? 'win' : 'lose');
+
+        renderTab();
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById('tabMine').classList.toggle('active', tab === 'mine');
+        document.getElementById('tabAll').classList.toggle('active', tab === 'all');
+        renderTab();
+    }
+
+    function renderTab() {
+        const listDiv = document.getElementById('betsList');
+        const statusDiv = document.getElementById('status');
+
+        const displayBets = currentTab === 'mine'
+            ? allBets.filter(b => b.isCreator)
+            : allBets;
+
+        if (displayBets.length === 0) {
+            listDiv.innerHTML = '';
+            statusDiv.innerHTML = `<div class="no-bets">${currentTab === 'mine' ? "You haven't placed any bets yet" : "No resolved bets yet"}</div>`;
+            return;
+        }
+        statusDiv.innerHTML = '';
+
+        listDiv.innerHTML = displayBets.map(bet => {
+            const resolvedDate = bet.resolved_at ? new Date(bet.resolved_at).toLocaleDateString() : '';
+            const photoHtml = bet.image_url
+                ? `<img src="${bet.image_url}" class="bet-photo">`
+                : '';
+            const oddsHtml = bet.odds
+                ? `<span class="odds-badge">${bet.odds}</span>`
+                : '';
+            const resultClass = bet.yourResult >= 0 ? 'win' : 'lose';
+            const resultSign = bet.yourResult >= 0 ? '+' : '-';
+
+            return `
+                <div class="bet-card">
+                    <div class="bet-top">
+                        <div class="bet-desc">${bet.description}${oddsHtml}</div>
+                        <span class="outcome-badge ${bet.status}">${bet.status.toUpperCase()}</span>
+                    </div>
+                    <div class="bet-meta">Bet by ${bet.isCreator ? 'you' : bet.creatorName} &middot; Resolved ${resolvedDate}</div>
+                    ${photoHtml}
+                    <div class="bet-row">
+                        <span>Wager</span>
+                        <span>$${Number(bet.amount).toFixed(2)}</span>
+                    </div>
+                    <div class="result-amount ${resultClass}">${resultSign}$${Math.abs(bet.yourResult).toFixed(2)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    init();
+</script>
+</body>
+</html>
