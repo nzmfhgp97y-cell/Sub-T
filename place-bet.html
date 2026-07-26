@@ -274,9 +274,12 @@
             if (result.amount) document.getElementById('amount').value = result.amount;
             if (result.odds) document.getElementById('odds').value = result.odds;
 
-            calculatePotentialWin();
-            if (result.potential_win && !document.getElementById('potentialWin').value) {
+            if (result.potential_win !== null && result.potential_win !== undefined) {
+                // Trust the AI's extracted value over any auto-calculation, since it read the real payout off the screenshot
                 document.getElementById('potentialWin').value = result.potential_win;
+            } else {
+                // No potential win was extracted, fall back to calculating from amount + odds
+                calculatePotentialWin();
             }
 
             messageDiv.textContent = 'Details filled in below \u2014 please review before submitting!';
