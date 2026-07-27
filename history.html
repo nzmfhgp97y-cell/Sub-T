@@ -35,24 +35,30 @@
             background: white;
             color: #1e1b4b;
             border-radius: 14px;
-            padding: 18px 30px;
+            padding: 16px 12px;
             display: flex;
-            gap: 30px;
+            justify-content: space-between;
+            gap: 8px;
             margin-bottom: 25px;
+            width: 320px;
+            box-sizing: border-box;
         }
         .summary-item {
             text-align: center;
+            flex: 1;
+            min-width: 0;
         }
         .summary-label {
-            font-size: 12px;
+            font-size: 11px;
             color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 4px;
         }
         .summary-value {
-            font-size: 24px;
+            font-size: 19px;
             font-weight: bold;
+            white-space: nowrap;
         }
         .summary-value.win { color: #16a34a; }
         .summary-value.lose { color: #dc2626; }
