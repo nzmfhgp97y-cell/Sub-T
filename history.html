@@ -3,6 +3,11 @@
 <head>
     <title>Sub T - History</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="SUB T - 16.png">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -223,6 +228,11 @@
             return;
         }
         currentUser = JSON.parse(stored);
+        if (currentUser.role === 'admin') {
+            currentTab = 'all';
+            document.getElementById('tabMine').style.display = 'none';
+            document.getElementById('tabAll').classList.add('active');
+        }
         loadHistory();
     }
 
@@ -306,6 +316,10 @@
     }
 
     function updateSummary(entries) {
+        if (currentUser.role === 'admin') {
+            document.querySelector('.summary-card').style.display = 'none';
+            return;
+        }
         let totalWon = 0;
         let totalLost = 0;
         entries.forEach(b => {
@@ -362,6 +376,7 @@
 
             if (entry.type === 'adjustment') {
                 const resolvedDate = new Date(entry.created_at).toLocaleDateString();
+                const isAdmin = currentUser.role === 'admin';
                 return `
                     <div class="bet-card">
                         <div class="bet-top">
@@ -375,7 +390,7 @@
                         <div class="bet-row" style="color:#cbd5e1; font-style: italic;">
                             <span>${entry.reason}</span>
                         </div>
-                        <div class="result-amount ${resultClass}">${resultSign}$${Math.abs(entry.yourResult).toFixed(2)}</div>
+                        ${isAdmin ? `<div style="text-align:right; font-size:14px; color:#94a3b8;">Amount: $${Math.abs(Number(entry.amount)).toFixed(2)}</div>` : `<div class="result-amount ${resultClass}">${resultSign}$${Math.abs(entry.yourResult).toFixed(2)}</div>`}
                     </div>
                 `;
             }
@@ -387,6 +402,8 @@
             const oddsHtml = entry.odds
                 ? `<span class="odds-badge">${entry.odds}</span>`
                 : '';
+
+            const isAdmin = currentUser.role === 'admin';
 
             return `
                 <div class="bet-card">
@@ -400,7 +417,7 @@
                         <span>Wager</span>
                         <span>$${Number(entry.amount).toFixed(2)}</span>
                     </div>
-                    <div class="result-amount ${resultClass}">${resultSign}$${Math.abs(entry.yourResult).toFixed(2)}</div>
+                    ${isAdmin ? '' : `<div class="result-amount ${resultClass}">${resultSign}$${Math.abs(entry.yourResult).toFixed(2)}</div>`}
                     ${entry.admin_comment ? `<div class="admin-comment">"${entry.admin_comment}"</div>` : ''}
                 </div>
             `;
