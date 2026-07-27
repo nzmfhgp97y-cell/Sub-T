@@ -197,6 +197,7 @@
         <div class="section-desc">
             Permanently removes a bet from the system &mdash; useful for cleaning up test bets. This cannot be undone and does not affect anyone's balance history beyond removing this bet's impact.
         </div>
+        <input type="text" id="deleteSearchInput" placeholder="Search by description or player..." oninput="renderDeletableBets()" style="width:100%; padding:10px; margin-bottom:14px; border-radius:8px; border:none; font-size:14px; box-sizing:border-box;">
         <div id="deleteBetsList">Loading bets...</div>
     </div>
 
@@ -228,6 +229,8 @@
         loadDeletableBets();
     }
 
+    let allDeletableBets = [];
+
     async function loadDeletableBets() {
         const listDiv = document.getElementById('deleteBetsList');
         const { data: bets, error } = await supabaseClient
@@ -240,22 +243,65 @@
             return;
         }
 
-        if (!bets || bets.length === 0) {
+        allDeletableBets = bets || [];
+        renderDeletableBets();
+    }
+
+    function renderDeletableBets() {
+        const listDiv = document.getElementById('deleteBetsList');
+        const searchTerm = document.getElementById('deleteSearchInput').value.trim().toLowerCase();
+
+        if (allDeletableBets.length === 0) {
             listDiv.innerHTML = '<div style="color:#64748b; font-style: italic;">No bets in the system</div>';
             return;
         }
 
-        listDiv.innerHTML = bets.map(bet => {
-            const creatorName = bet.creator ? bet.creator.name : 'Unknown';
-            const placedDate = new Date(bet.created_at).toLocaleDateString();
-            return `
-                <div class="delete-bet-item" id="delete-bet-${bet.id}">
-                    <div class="delete-bet-info">
-                        <div>${bet.description} &mdash; $${Number(bet.amount).toFixed(2)}</div>
-                        <div class="delete-bet-status">${bet.status} &middot; ${creatorName} &middot; ${placedDate}</div>
+        const filtered = searchTerm
+            ? allDeletableBets.filter(b => {
+                const creatorName = b.creator ? b.creator.name.toLowerCase() : '';
+                return b.description.toLowerCase().includes(searchTerm) || creatorName.includes(searchTerm);
+            })
+            : allDeletableBets;
+
+        if (filtered.length === 0) {
+            listDiv.innerHTML = '<div style="color:#64748b; font-style: italic;">No bets match your search</div>';
+            return;
+        }
+
+        // Group by month/year
+        const groups = {};
+        filtered.forEach(bet => {
+            const date = new Date(bet.created_at);
+            const key = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(bet);
+        });
+
+        const groupKeys = Object.keys(groups); // already in order since filtered is sorted desc
+        const currentMonthKey = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+        listDiv.innerHTML = groupKeys.map((key, i) => {
+            // Auto-expand the current month or if actively searching; collapse older months by default
+            const shouldBeOpen = key === currentMonthKey || searchTerm;
+            const items = groups[key].map(bet => {
+                const creatorName = bet.creator ? bet.creator.name : 'Unknown';
+                const placedDate = new Date(bet.created_at).toLocaleDateString();
+                return `
+                    <div class="delete-bet-item" id="delete-bet-${bet.id}">
+                        <div class="delete-bet-info">
+                            <div>${bet.description} &mdash; $${Number(bet.amount).toFixed(2)}</div>
+                            <div class="delete-bet-status">${bet.status} &middot; ${creatorName} &middot; ${placedDate}</div>
+                        </div>
+                        <button class="btn-delete" onclick="deleteBet('${bet.id}')">Delete</button>
                     </div>
-                    <button class="btn-delete" onclick="deleteBet('${bet.id}')">Delete</button>
-                </div>
+                `;
+            }).join('');
+
+            return `
+                <details ${shouldBeOpen ? 'open' : ''} style="margin-bottom:10px;">
+                    <summary style="cursor:pointer; font-size:13px; font-weight:bold; color:#cbd5e1; padding:8px 0;">${key} (${groups[key].length})</summary>
+                    ${items}
+                </details>
             `;
         }).join('');
     }
@@ -281,6 +327,7 @@
             return;
         }
 
+        allDeletableBets = allDeletableBets.filter(b => b.id !== betId);
         item.remove();
     }
 
