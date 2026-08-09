@@ -318,14 +318,14 @@
         const reviewDiv = document.getElementById('multiBetReview');
 
         reviewDiv.innerHTML = `
-            <div style="background:#1e293b; border:1px solid #7c3aed; border-radius:12px; padding:16px 20px; margin-bottom:16px;">
+            <div style="background:#1e293b; border:1px solid #7c3aed; border-radius:12px; padding:16px 20px; margin-bottom:16px; width:280px; box-sizing:border-box;">
                 <div style="font-weight:bold; margin-bottom:4px;">Found ${bets.length} bets in this screenshot</div>
                 <div style="font-size:13px; color:#94a3b8; margin-bottom:14px;">Uncheck any you don't want to log, then submit the rest.</div>
                 ${bets.map((b, i) => `
-                    <label style="display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-top:1px solid #334155; cursor:pointer;">
-                        <input type="checkbox" id="multi-bet-${i}" checked style="margin-top:4px;">
-                        <div style="font-size:14px;">
-                            <div style="font-weight:bold;">${b.description || '(no description found)'}</div>
+                    <label style="display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-top:1px solid #334155; cursor:pointer;">
+                        <input type="checkbox" id="multi-bet-${i}" checked style="width:20px !important; height:20px; min-width:20px; padding:0 !important; margin:2px 0 0 0 !important; flex-shrink:0; accent-color:#16a34a;">
+                        <div style="font-size:14px; flex:1; min-width:0;">
+                            <div style="font-weight:bold; margin-bottom:4px;">${b.description || '(no description found)'}</div>
                             <div style="color:#94a3b8; font-size:13px;">
                                 $${b.amount ?? '?'} wagered ${b.odds ? '&middot; odds ' + b.odds : ''} ${b.potential_win !== null && b.potential_win !== undefined ? '&middot; wins $' + b.potential_win : ''}
                             </div>
