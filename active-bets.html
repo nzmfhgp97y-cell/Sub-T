@@ -183,6 +183,15 @@
             return;
         }
         currentUser = JSON.parse(stored);
+
+        if (currentUser.role === 'admin') {
+            document.querySelector('.summary-card').style.display = 'none';
+            document.getElementById('tabMine').style.display = 'none';
+            document.getElementById('tabOthers').textContent = 'All Active Bets';
+            document.getElementById('tabOthers').classList.add('active');
+            currentTab = 'others';
+        }
+
         loadActiveBets();
     }
 
@@ -204,22 +213,25 @@
         allBets = (bets || []).map(bet => {
             const amount = Number(bet.amount);
             const winAmount = bet.potential_win ? Number(bet.potential_win) : amount;
-            const isCreator = bet.creator_id === currentUser.id;
+            const isAdmin = currentUser.role === 'admin';
+            const isCreator = !isAdmin && bet.creator_id === currentUser.id;
             const creatorName = bet.creator ? bet.creator.name : 'Unknown';
             return {
                 ...bet,
                 isCreator,
                 creatorName,
-                youWin: isCreator ? winAmount : (amount / 2),
-                youLose: isCreator ? amount : (winAmount / 2)
+                youWin: isAdmin ? winAmount : (isCreator ? winAmount : (amount / 2)),
+                youLose: isAdmin ? amount : (isCreator ? amount : (winAmount / 2))
             };
         });
 
-        // Summary totals across ALL active bets (both yours and others') since that's your real exposure
-        const totalRisk = allBets.reduce((sum, b) => sum + b.youLose, 0);
-        const totalPotential = allBets.reduce((sum, b) => sum + b.youWin, 0);
-        document.getElementById('totalRisk').textContent = '$' + totalRisk.toFixed(2);
-        document.getElementById('totalPotential').textContent = '$' + totalPotential.toFixed(2);
+        if (currentUser.role !== 'admin') {
+            // Summary totals across ALL active bets (both yours and others') since that's your real exposure
+            const totalRisk = allBets.reduce((sum, b) => sum + b.youLose, 0);
+            const totalPotential = allBets.reduce((sum, b) => sum + b.youWin, 0);
+            document.getElementById('totalRisk').textContent = '$' + totalRisk.toFixed(2);
+            document.getElementById('totalPotential').textContent = '$' + totalPotential.toFixed(2);
+        }
 
         renderTab();
     }
@@ -234,12 +246,15 @@
     function renderTab() {
         const listDiv = document.getElementById('betsList');
         const statusDiv = document.getElementById('status');
+        const isAdmin = currentUser.role === 'admin';
 
-        const filtered = allBets.filter(b => currentTab === 'mine' ? b.isCreator : !b.isCreator);
+        const filtered = isAdmin
+            ? allBets
+            : allBets.filter(b => currentTab === 'mine' ? b.isCreator : !b.isCreator);
 
         if (filtered.length === 0) {
             listDiv.innerHTML = '';
-            statusDiv.innerHTML = `<div class="no-bets">${currentTab === 'mine' ? "You haven't placed any active bets" : "No active bets from others right now"}</div>`;
+            statusDiv.innerHTML = `<div class="no-bets">${isAdmin ? 'No active bets right now' : (currentTab === 'mine' ? "You haven't placed any active bets" : "No active bets from others right now")}</div>`;
             return;
         }
         statusDiv.innerHTML = '';
@@ -252,18 +267,22 @@
                 ? `<span class="odds-badge">${bet.odds}</span>`
                 : '';
 
+            const winLabel = isAdmin ? 'Potential win:' : "If it hits:";
+            const loseLabel = isAdmin ? 'Wager amount:' : "If it doesn't:";
+            const creatorLabel = isAdmin ? 'Bet by ' + bet.creatorName : (bet.isCreator ? 'Your bet' : 'Bet by ' + bet.creatorName);
+
             return `
                 <div class="bet-card">
                     <div class="bet-desc">${bet.description}${oddsHtml}</div>
-                    <div class="bet-creator">${bet.isCreator ? 'Your bet' : 'Bet by ' + bet.creatorName}</div>
+                    <div class="bet-creator">${creatorLabel}</div>
                     ${photoHtml}
                     <div class="bet-row">
-                        <span class="label">If it hits:</span>
+                        <span class="label">${winLabel}</span>
                         <span class="value win">+$${bet.youWin.toFixed(2)}</span>
                     </div>
                     <div class="bet-row">
-                        <span class="label">If it doesn't:</span>
-                        <span class="value lose">-$${bet.youLose.toFixed(2)}</span>
+                        <span class="label">${loseLabel}</span>
+                        <span class="value ${isAdmin ? '' : 'lose'}">${isAdmin ? '$' : '-$'}${bet.youLose.toFixed(2)}</span>
                     </div>
                 </div>
             `;
