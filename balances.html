@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sub T - Balances</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="SUB T - 16.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+        }
+        .logo {
+            width: 160px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 30px;
+            margin: 5px 0 20px 0;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: #1e293b;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #334155;
+        }
+        .tab.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+        .balance-row {
+            background: white;
+            color: #1e1b4b;
+            border-radius: 14px;
+            padding: 18px 24px;
+            width: 300px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+        }
+        .player-name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .balance-amount {
+            font-size: 22px;
+            font-weight: bold;
+        }
+        .balance-amount.positive { color: #16a34a; }
+        .balance-amount.negative { color: #dc2626; }
+        .balance-amount.zero { color: #64748b; }
+        .zero-sum-note {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            width: 300px;
+        }
+        .back {
+            margin-top: 20px;
+            color: #94a3b8;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        #status {
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <img src="SUB T - 16.png" class="logo">
+    <h1>Balances</h1>
+
+    <div class="tabs">
+        <div class="tab active" id="tabCycle" onclick="switchPeriod('cycle')">Current Cycle</div>
+        <div class="tab" id="tabAllTime" onclick="switchPeriod('alltime')">All Time</div>
+    </div>
+
+    <div id="balancesList">Loading...</div>
+    <div class="zero-sum-note">Positive means they're owed money; negative means they owe. These should always balance out to $0 across the group.</div>
+    <div id="status"></div>
+
+    <div class="back" onclick="window.location.href='dashboard.html'">Back to Dashboard</div>
+</div>
+
+<script>
+    const supabaseUrl = 'https://nygnhiaerazayvcgvrwe.supabase.co';
+    const supabaseKey = 'sb_publishable_vuQJdEIU6qUhTlzuD3z1yg_Vy7eH5d9';
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    let currentUser = null;
+    let currentPeriod = 'cycle';
+    let cycleStart = new Date(0);
+    let allBets = [];
+    let allAdjustments = [];
+    let players = [];
+
+    function init() {
+        const stored = localStorage.getItem('subt_user');
+        if (!stored) {
+            window.location.href = 'login.html';
+            return;
+        }
+        currentUser = JSON.parse(stored);
+        loadData();
+    }
+
+    async function loadData() {
+        const statusDiv = document.getElementById('status');
+
+        const { data: settings } = await supabaseClient
+            .from('app_settings')
+            .select('cycle_start')
+            .eq('id', 1)
+            .single();
+        if (settings) cycleStart = new Date(settings.cycle_start);
+
+        const { data: profiles, error: profilesError } = await supabaseClient
+            .from('profiles')
+            .select('id, name, role')
+            .eq('role', 'player')
+            .order('name');
+
+        if (profilesError) {
+            statusDiv.textContent = 'Could not load players: ' + profilesError.message;
+            return;
+        }
+        players = profiles || [];
+
+        const { data: bets, error: betsError } = await supabaseClient
+            .from('bets')
+            .select('creator_id, amount, potential_win, status, resolved_at')
+            .neq('status', 'pending');
+
+        if (betsError) {
+            statusDiv.textContent = 'Could not load bets: ' + betsError.message;
+            return;
+        }
+        allBets = bets || [];
+
+        const { data: adjustments, error: adjError } = await supabaseClient
+            .from('adjustments')
+            .select('target_user_id, amount, created_at');
+
+        if (adjError) {
+            statusDiv.textContent = 'Could not load adjustments: ' + adjError.message;
+            return;
+        }
+        allAdjustments = adjustments || [];
+
+        renderBalances();
+    }
+
+    function calculateBalance(playerId, onlyThisCycle) {
+        let balance = 0;
+
+        for (const bet of allBets) {
+            if (onlyThisCycle && (!bet.resolved_at || new Date(bet.resolved_at) < cycleStart)) continue;
+
+            const amount = Number(bet.amount);
+            const winAmount = bet.potential_win ? Number(bet.potential_win) : amount;
+            const isCreator = bet.creator_id === playerId;
+
+            if (bet.status === 'won') {
+                balance += isCreator ? winAmount : -(winAmount / 2);
+            } else if (bet.status === 'lost') {
+                balance += isCreator ? -amount : (amount / 2);
+            }
+        }
+
+        for (const adj of allAdjustments) {
+            if (onlyThisCycle && new Date(adj.created_at) < cycleStart) continue;
+
+            const amount = Number(adj.amount);
+            const isTarget = adj.target_user_id === playerId;
+            balance += isTarget ? amount : -(amount / 2);
+        }
+
+        return balance;
+    }
+
+    function switchPeriod(period) {
+        currentPeriod = period;
+        document.getElementById('tabCycle').classList.toggle('active', period === 'cycle');
+        document.getElementById('tabAllTime').classList.toggle('active', period === 'alltime');
+        renderBalances();
+    }
+
+    function renderBalances() {
+        const listDiv = document.getElementById('balancesList');
+        const onlyThisCycle = currentPeriod === 'cycle';
+
+        const results = players.map(p => ({
+            name: p.name,
+            balance: calculateBalance(p.id, onlyThisCycle),
+            isYou: p.id === currentUser.id
+        }));
+
+        results.sort((a, b) => b.balance - a.balance);
+
+        listDiv.innerHTML = results.map(r => {
+            const cls = r.balance > 0.01 ? 'positive' : (r.balance < -0.01 ? 'negative' : 'zero');
+            const sign = r.balance > 0.01 ? '+' : '';
+            return `
+                <div class="balance-row">
+                    <span class="player-name">${r.name}${r.isYou ? ' (you)' : ''}</span>
+                    <span class="balance-amount ${cls}">${sign}$${r.balance.toFixed(2)}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    init();
+</script>
+</body>
+</html>
