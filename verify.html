@@ -393,7 +393,7 @@
                         <option value="won" ${p.status === 'won' ? 'selected' : ''}>Won</option>
                         <option value="lost" ${p.status === 'lost' ? 'selected' : ''}>Lost</option>
                         <option value="void" ${p.status === 'void' ? 'selected' : ''}>Void/Tie</option>
-                        <option value="skip">Skip this one</option>
+                        <option value="skip" ${p.status === 'skip' ? 'selected' : ''}>Skip this one</option>
                     </select>
                 </div>
             `).join('')}
