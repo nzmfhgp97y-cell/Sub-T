@@ -320,8 +320,10 @@
 
         let text = "I need help figuring out the results of these bets. For each one, search for the real result and tell me if it WON or LOST (or was VOID/cancelled/postponed). ";
         text += "IMPORTANT: Some of these may involve teams that played on consecutive days (like a baseball series or doubleheader) \u2014 use the exact date the bet was placed to figure out which specific game is being referenced, and assume it's the game closest to that date/time, not a later game against the same opponent.\n\n";
+        text += "IMPORTANT: If a bet is a PARLAY (multiple legs/selections combined into one bet): if ANY leg has already definitively LOST, the whole parlay is LOST immediately \u2014 it doesn't matter if other legs are still in progress or unfinished. But if no leg has lost yet and at least one leg's game is still in progress or hasn't started, answer SKIP (you can't confirm a win until every leg is finished and has won). Only answer WON if every single leg has finished and hit.\n\n";
+        text += "IMPORTANT: If the game/event hasn't finished yet, or you can't find a clear final result, answer SKIP for that one \u2014 do NOT guess or mark it LOST just because it's not finished. Only answer WON or LOST when you're confident the event is fully over and you know the real outcome.\n\n";
         text += "Please answer using EXACTLY this format, one line per bet, so I can paste your answer back into a tool:\n";
-        text += "1: WON - brief reason\n2: LOST - brief reason\n(etc.)\n\n";
+        text += "1: WON - brief reason\n2: LOST - brief reason\n3: SKIP - brief reason (game not finished yet)\n(etc.)\n\n";
         text += "Here are the bets:\n\n";
 
         pendingBets.forEach((bet, i) => {
@@ -352,11 +354,12 @@
         const parsed = [];
 
         lines.forEach(line => {
-            const match = line.match(/^\s*(\d+)\s*[:.]\s*(WON|LOST|VOID|CANCELLED|POSTPONED)\b\s*[-:]?\s*(.*)$/i);
+            const match = line.match(/^\s*(\d+)\s*[:.]\s*(WON|LOST|VOID|CANCELLED|POSTPONED|SKIP|UNCLEAR)\b\s*[-:]?\s*(.*)$/i);
             if (match) {
                 const index = parseInt(match[1]) - 1;
                 let status = match[2].toUpperCase();
                 if (status === 'CANCELLED' || status === 'POSTPONED') status = 'VOID';
+                if (status === 'UNCLEAR') status = 'SKIP';
                 const reason = match[3].trim();
 
                 if (pendingBets[index]) {
